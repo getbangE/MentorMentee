@@ -1,1 +1,75 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+import webbrowser
 
+url = "https://ce.kumoh.ac.kr/ce/sub0501.do"
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36'
+}
+
+def get_notices(page):
+    offset = (page - 1) * 10
+    response = requests.get(url + f"?mode=list&articleLimit=10&article.offset={offset}", headers=headers)
+    time.sleep(2)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    section = soup.find("table")
+    sa_list = section.find("tbody")
+
+    notices = []
+
+    # 여러 개의 공지사항 제목을 가져오기
+    for notice in sa_list.find_all("tr"):
+        # mode=view가 포함된 링크만 공지사항 링크로 인식
+        title_elem = notice.find("a", href=lambda h: h and "mode=view" in h)
+        date_elem = notice.select("td")
+
+        if title_elem:
+            title = title_elem.get("title", title_elem.text.strip())
+            date = date_elem[-2].text.strip() if len(date_elem) >= 2 else "-"
+            link = "https://ce.kumoh.ac.kr" + title_elem["href"]
+            notices.append((title, date, link))
+
+    return notices
+
+def print_notices(notices):
+    print(f"\n{'날짜':<14} {'제목'}")
+    print("-" * 70)
+    for i, (title, date, link) in enumerate(notices):
+        print(f"[{i+1:2}] {date:<14} {title}")
+    print("-" * 70)
+
+# 처음 실행 시 1페이지 출력
+current_page = 1
+notices = get_notices(current_page)
+print(f"\n[ {current_page}페이지 공지사항 ]")
+print_notices(notices)
+
+# 명령어 입력 받기
+while True:
+    print("\n명령어: 페이지 번호 입력(예: 2) /  공지 번호 입력(브라우저 열기)(예: n3) /  종료(q)")
+    cmd = input("입력: ").strip()
+
+    if cmd == "q":
+        print("종료.")
+        break
+
+    # 공지 브라우저로 열기: n1, n2, n3 ...
+    elif cmd.startswith("n"):
+        idx = int(cmd[1:]) - 1
+        if 0 <= idx < len(notices):
+            print(f"공지열기: {notices[idx][0]}")
+            webbrowser.open(notices[idx][2])
+        else:
+            print("올바른 번호를 입력해주세요.")
+
+    # 페이지 이동
+    elif cmd.isdigit():
+        current_page = int(cmd)
+        notices = get_notices(current_page)
+        print(f"\n[ {current_page}페이지 공지사항 ]")
+        print_notices(notices)
+
+    else:
+        print("올바른 명령어를 입력해주세요.")
